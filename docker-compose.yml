@@ -1,0 +1,68 @@
+version: "3"
+
+services:
+  # docker compose up frontend
+  # http://localhost:3000
+  frontend:
+    build: ./frontend
+    tty: true
+    stdin_open: true
+    ports:
+      - 3000:3000
+    env_file:
+      - .env
+    volumes:
+      - ${pwd:-.}/frontend/public:/app/public:ro
+      - ${pwd:-.}/frontend/src:/app/src:ro
+
+  # docker compose up backend-deploy
+  backend-deploy:
+    build: ./backend
+    working_dir: /backend
+    volumes:
+      - ~/.aws:/root/.aws:ro
+      - ${pwd:-.}/backend:/backend
+    command: >
+      sh -c "sam build 
+      && sam deploy --s3-bucket ${S3_BUCKET}"
+
+  # docker compose up backend-describe
+  backend-describe:
+    image: amazon/aws-cli
+    volumes:
+      - ~/.aws:/root/.aws:ro
+    command: cloudformation describe-stacks --query "Stacks[0].Outputs" --stack-name amazon-cognito-react-amplify
+
+  # docker compose run -e USR_PWD=<pwd> --rm backend-users
+  backend-users:
+    build: ./backend
+    working_dir: /backend
+    volumes:
+      - ~/.aws:/root/.aws:ro
+    command: >
+      sh -c "aws cognito-idp admin-set-user-password
+      --user-pool-id ${REACT_APP_COGNITO_USER_POOL_ID} 
+      --username basic@test.com 
+      --password $${USR_PWD} 
+      --permanent && 
+      aws cognito-idp admin-set-user-password
+      --user-pool-id ${REACT_APP_COGNITO_USER_POOL_ID} 
+      --username advanced@test.com 
+      --password $${USR_PWD} 
+      --permanent"
+
+  # docker compose up backend-delete
+  backend-delete:
+    image: amazon/aws-cli
+    volumes:
+      - ~/.aws:/root/.aws:ro
+    command: cloudformation delete-stack --stack-name amazon-cognito-react-amplify
+
+  # docker compose run --rm aws-shell
+  aws-shell:
+    build: ./backend
+    tty: true
+    stdin_open: true
+    volumes:
+      - ~/.aws:/root/.aws:ro
+    entrypoint: aws-shell

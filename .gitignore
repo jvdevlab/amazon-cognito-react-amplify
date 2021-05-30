@@ -1,0 +1,6 @@
+.aws-sam
+
+dependency-reduced-pom.xml
+**/target
+
+**/node_modules 

@@ -1,0 +1,370 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: amazon-cognito-react-amplify
+
+# https://github.com/aws/serverless-application-model/blob/master/versions/2016-10-31.md#globals-section
+Globals:
+  Api:
+    Cors:
+      AllowOrigin: "'http://localhost:3000'"
+      AllowMethods: "'POST'"
+      AllowHeaders: "'*'"
+
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+Parameters:
+  ParamTableName:
+    Type: String
+    Default: test_data
+  ParamStageName:
+    Type: String
+    Default: Prod
+  ParamFunctionName:
+    Type: String
+    Default: amazon-cognito-react-amplify
+
+Resources:
+  # Amazon Cognito Setup
+  # https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpool.html
+  # https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-identity-pools.html
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpooldomain.html
+  # https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-assign-domain.html
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref Api
+      UserPoolId: !Ref UserPool
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpoolclient.html
+  # https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-app-idp-settings.html
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - http://localhost:3000
+      DefaultRedirectURI: http://localhost:3000
+      LogoutURLs:
+        - http://localhost:3000
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      AllowedOAuthScopes:
+        - email
+        - openid
+      UserPoolId: !Ref UserPool
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-identitypool.html
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Join ["-", [!Ref ParamFunctionName, "-ip"]]
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-identitypoolroleattachment.html
+  # https://docs.aws.amazon.com/fr_fr/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-identitypoolroleattachment.html
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthorizedRole.Arn
+        unauthenticated: !GetAtt CognitoUnAuthorizedRole.Arn
+      RoleMappings:
+        CognitoProvider:
+          Type: Token
+          AmbiguousRoleResolution: Deny
+          IdentityProvider:
+            !Join [
+              "",
+              ["cognito-idp.us-east-1.amazonaws.com/", !Ref UserPool, ":", !Ref UserPoolClient],
+            ]
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
+  CognitoAuthorizedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+        - PolicyName: CognitoUnauthorizedPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - mobileanalytics:PutEvents
+                Resource: "*"
+      RoleName: !Join ["-", [!Ref ParamFunctionName, "authenticated"]]
+      Tags:
+        - Key: "name"
+          Value: !Ref ParamFunctionName
+
+  CognitoUnAuthorizedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: unauthenticated
+      Policies:
+        - PolicyName: CognitoUnauthorizedPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - mobileanalytics:PutEvents
+                Resource: "*"
+      RoleName: !Join ["-", [!Ref ParamFunctionName, "unauthenticated"]]
+      Tags:
+        - Key: "name"
+          Value: !Ref ParamFunctionName
+
+  BasicRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+        - PolicyName: basic
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ["dynamodb:GetItem", "dynamodb:Scan"]
+                Resource: !GetAtt Table.Arn
+      RoleName: !Join ["-", [!Ref ParamFunctionName, "basic"]]
+      Tags:
+        - Key: "name"
+          Value: !Ref ParamFunctionName
+
+  AdvancedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+        - PolicyName: advanced
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  [
+                    "dynamodb:GetItem",
+                    "dynamodb:Scan",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                  ]
+                Resource: !GetAtt Table.Arn
+      RoleName: !Join ["-", [!Ref ParamFunctionName, "advanced"]]
+      Tags:
+        - Key: "name"
+          Value: !Ref ParamFunctionName
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpoolgroup.html
+  # https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-user-groups.html
+  BasicGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      Description: Basic
+      GroupName: basic
+      Precedence: 0
+      RoleArn: !GetAtt BasicRole.Arn
+      UserPoolId: !Ref UserPool
+
+  AdvancedGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      Description: Advanced
+      GroupName: advanced
+      Precedence: 0
+      RoleArn: !GetAtt AdvancedRole.Arn
+      UserPoolId: !Ref UserPool
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpooluser.html
+  # https://docs.aws.amazon.com/cognito/latest/developerguide/how-to-create-user-accounts.html
+  BasicUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: basic@test.com
+      DesiredDeliveryMediums:
+        - EMAIL
+      UserAttributes:
+        - Name: email
+          Value: basic@test.com
+
+  AdvancedUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: advanced@test.com
+      DesiredDeliveryMediums:
+        - EMAIL
+      UserAttributes:
+        - Name: email
+          Value: advanced@test.com
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cognito-userpoolusertogroupattachment.html
+  AddBasicUserToBasicGroup:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    Properties:
+      GroupName: !Ref BasicGroup
+      Username: !Ref BasicUser
+      UserPoolId: !Ref UserPool
+
+  AddAdvancedUserToAdvancedGroup:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    Properties:
+      GroupName: !Ref AdvancedGroup
+      Username: !Ref AdvancedUser
+      UserPoolId: !Ref UserPool
+
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-api.html
+  # https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-integrate-with-cognito.html
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        DefaultAuthorizer: CognitoUserPoolAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: False
+        Authorizers:
+          CognitoUserPoolAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+
+  # The App Setup
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html
+  Table:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      TableName: !Ref ParamTableName
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: "name"
+          Value: !Ref ParamFunctionName
+
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
+  Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: myapp/
+      Handler: app.handler
+      Runtime: nodejs14.x
+      MemorySize: 128
+      Timeout: 3
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ParamTableName
+      # Note, we don't assign a crud policy to the function here as the function will assume role based on the JWT token provided.
+      #Policies:
+      # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+      #- DynamoDBCrudPolicy:
+      #    TableName: !Ref ParamTableName
+      Events:
+        # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-function-eventsource.html
+        Root:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /
+            Method: get
+        PostProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: "/{proxy+}"
+            Method: post
+      Tags:
+        "name": !Ref ParamFunctionName
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-logs-loggroup.html
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${Function}
+      RetentionInDays: 7
+
+Outputs:
+  ApiGatewayUrl:
+    Description: "API Gateway URL"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${ParamStageName}/"
+  IdentityPoolId:
+    Description: "Identity Pool Id"
+    Value: !Sub ${IdentityPool}  
+  CognitoUserPoolId:
+    Description: "User Pool Id"
+    Value: !Sub ${UserPool}
+  CognitoAppClientId:
+    Description: "Client App Id"
+    Value: !Sub ${UserPoolClient}
+  CognitoDomain:
+    Description: "Cognito domain"
+    Value: !Sub "${UserPoolDomain}.auth.us-east-1.amazoncognito.com"
