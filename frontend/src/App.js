@@ -16,6 +16,7 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(17),
   },
 }));
+
 export default function App() {
   const classes = useStyles();
   const table = "test_data";

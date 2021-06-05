@@ -15,8 +15,8 @@ services:
       - ${pwd:-.}/frontend/public:/app/public:ro
       - ${pwd:-.}/frontend/src:/app/src:ro
 
-  # docker compose up backend-deploy
-  backend-deploy:
+  # docker compose up backend
+  backend:
     build: ./backend
     working_dir: /backend
     volumes:
@@ -26,15 +26,15 @@ services:
       sh -c "sam build 
       && sam deploy --s3-bucket ${S3_BUCKET}"
 
-  # docker compose up backend-describe
-  backend-describe:
+  # docker compose up describe
+  describe:
     image: amazon/aws-cli
     volumes:
       - ~/.aws:/root/.aws:ro
     command: cloudformation describe-stacks --query "Stacks[0].Outputs" --stack-name amazon-cognito-react-amplify
 
-  # docker compose run -e USR_PWD=<pwd> --rm backend-users
-  backend-users:
+  # docker compose run -e USR_PWD=<pwd> --rm users
+  users:
     build: ./backend
     working_dir: /backend
     volumes:
@@ -51,8 +51,8 @@ services:
       --password $${USR_PWD} 
       --permanent"
 
-  # docker compose up backend-delete
-  backend-delete:
+  # docker compose up clean
+  clean:
     image: amazon/aws-cli
     volumes:
       - ~/.aws:/root/.aws:ro

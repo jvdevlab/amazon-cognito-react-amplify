@@ -4,3 +4,5 @@ dependency-reduced-pom.xml
 **/target
 
 **/node_modules 
+
+desktop.ini
