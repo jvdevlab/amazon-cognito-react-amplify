@@ -1,4 +1,5 @@
 .aws-sam
+.env
 
 dependency-reduced-pom.xml
 **/target

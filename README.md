@@ -28,7 +28,7 @@ The React based frontend application uses AWS Amplify for user authentication an
 - Clone the repo.
 - If your AWS security credentials are **not** in `~/.aws`, then adjust the bind mapping in `docker-compose.yml`.
 - Rename `.env.local` to `.env`.
-- Update S3_BUCKET variable in the `.env` file with your s3 bucket name. AWS SAM needs it to upload template and serverless function code.
+- Update S3_BUCKET variable in the `.env` file with your s3 bucket name. AWS SAM needs it to upload the template and serverless function code.
 - To deploy the backend to AWS run:
 
 ```bash
@@ -57,9 +57,11 @@ docker compose up frontend
 ```
 
 - Open the app <http://localhost:3000>
-- Verify that you are not able to perform CRUD operations.
-- Sing in with `advanced@test.com` user and password you specified earlier. Verify that you are able to perform all CRUD operations.
-- Sign out and sing in back with `basic@test.com` (same password). Verify that you able to do Get and Scan scan only. You should get `AccessDeniedException` if you try to Put, Update or Delete.
+- Verify that you can not perform CRUD operations.
+- Sign in with `advanced@test.com` user and password you specified earlier. Verify that you can perform all CRUD operations.
+- Sign out and sign in back with `basic@test.com` (same password). Verify that you can do Get and Scan only. You should get `AccessDeniedException` if you try to Put, Update or Delete.
+
+![](https://jvdevlab.com/assets/images/04-02a5139ee86c403c2026cee0fb6763b0.PNG)
 
 ## Cleanup
 
