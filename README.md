@@ -61,7 +61,7 @@ docker compose up frontend
 - Sign in with `advanced@test.com` user and password you specified earlier. Verify that you can perform all CRUD operations.
 - Sign out and sign in back with `basic@test.com` (same password). Verify that you can do Get and Scan only. You should get `AccessDeniedException` if you try to Put, Update or Delete.
 
-![](https://jvdevlab.com/assets/images/04-02a5139ee86c403c2026cee0fb6763b0.PNG)
+![](https://jvdevlab.com/img/amazon-cognito-react-amplify/04.png)
 
 ## Cleanup
 
