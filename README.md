@@ -1,6 +1,6 @@
 ## Blog Post
 
-:scroll: A more detailed description of this project and a code walk-through can be found on my [blog](https://jvdevlab.com/blog/aws/cognito/react-amplify).
+:scroll: See this [blog post](https://jvdevlab.com/blog/aws/cognito/react-amplify) for more details about this project.
 
 ## Description
 
